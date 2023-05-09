@@ -1,0 +1,72 @@
+import sqlite3
+import time
+import picamera
+import os
+import signal
+from mfrc522 import SimpleMFRC522
+
+# Khởi tạo RFID reader
+reader = SimpleMFRC522()
+
+# Kết nối cơ sở dữ liệu
+conn = sqlite3.connect('data.db')
+c = conn.cursor()
+
+# Tạo bảng records trong cơ sở dữ liệu (nếu chưa tồn tại)
+c.execute('''CREATE TABLE IF NOT EXISTS records
+             (id INTEGER PRIMARY KEY AUTOINCREMENT,
+              name TEXT NOT NULL,
+              rfid_id INTEGER NOT NULL,
+              image_path TEXT NOT NULL,
+              timestamp TEXT NOT NULL)''')
+conn.commit()
+
+# Khởi tạo camera
+camera = picamera.PiCamera()
+
+def capture_image():
+    # Tạo tên file ảnh dựa trên thời gian hiện tại
+    timestamp = time.strftime('%Y%m%d-%H%M%S')
+    image_path = f'/home/pi/images/{timestamp}.jpg'
+    
+    # Chụp ảnh và lưu vào thư mục images
+    camera.capture(image_path)
+    return image_path
+
+def signal_handler(sig, frame):
+    # Đóng kết nối cơ sở dữ liệu và thoát chương trình khi nhận được SIGINT
+    conn.close()
+    camera.close()
+    exit(0)
+
+signal.signal(signal.SIGINT, signal_handler)
+
+while True:
+    try:
+        # Quét RFID
+        print('Waiting for card...')
+        id, name = reader.read()
+
+        # Kiểm tra xem đã có dữ liệu với RFID này trong cơ sở dữ liệu chưa
+        c.execute("SELECT * FROM records WHERE rfid_id=?", (id,))
+        record = c.fetchone()
+
+        if record is None:
+            # Nếu không có dữ liệu, chụp ảnh và lưu vào cơ sở dữ liệu
+            image_path = capture_image()
+            timestamp = time.strftime('%Y-%m-%d %H:%M:%S')
+            c.execute("INSERT INTO records (name, rfid_id, image_path, timestamp) VALUES (?, ?, ?, ?)", (name, id, image_path, timestamp))
+            conn.commit()
+            print(f"New record added: {name} ({id})")
+        else:
+            # Nếu có dữ liệu, hiển thị thông tin và ảnh
+            id, name, rfid_id, image_path, timestamp = record
+            print(f"Welcome back, {name} ({id})!")
+            os.system(f"feh {image_path}")
+
+    except KeyboardInterrupt:
+        # Đóng kết nối cơ sở dữ liệu và thoát chương trình khi nhận được SIGINT
+        conn.close()
+        camera.close()
+        # Thoát chương trình
+        exit()

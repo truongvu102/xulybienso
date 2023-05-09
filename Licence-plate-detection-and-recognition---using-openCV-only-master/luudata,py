@@ -1,0 +1,12 @@
+# Khởi tạo danh sách để lưu trữ biển số xe
+license_plates = []
+
+# Quét và nhận dạng biển số xe, sau đó thêm biển số đó vào danh sách
+license_plate = "ABC-1234"  # Giả sử biển số xe quét được là ABC-1234
+license_plates.append(license_plate)
+
+# Kiểm tra xem biển số xe có tồn tại trong danh sách hay không
+if license_plate in license_plates:
+    print("Mở cửa")
+else:
+    print("Không tìm thấy biển số xe")
